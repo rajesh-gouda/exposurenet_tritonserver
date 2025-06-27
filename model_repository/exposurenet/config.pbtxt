@@ -1,0 +1,21 @@
+name: "exposurenet"
+backend: "python"
+
+platform: "python"
+max_batch_size: 0
+input [
+  {
+    name: "input_str"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+output [
+  {
+    name: "output_str"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+
+instance_group [{ kind: KIND_CPU }]

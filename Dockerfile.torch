@@ -1,0 +1,4 @@
+FROM nvcr.io/nvidia/tritonserver:24.03-py3
+
+# Install PyTorch CPU version
+RUN pip install torch==2.2.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
