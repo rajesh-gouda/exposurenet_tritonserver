@@ -102,50 +102,67 @@ class ExposureNet(nn.Module):
 
 class TritonPythonModel:
     def initialize(self, args):
-        logging.info("Loading model...")
-        path = os.path.join(os.path.dirname(__file__), "exposure_model.pt")
-        checkpoint = torch.load(path, map_location="cpu")
+        try:
+            logging.info("Loading model...")
+            path = os.path.join(os.path.dirname(__file__), "exposure_model.pt")
+            checkpoint = torch.load(path, map_location="cpu")
 
-        self.vocab_lookup = checkpoint["vocab_lookup"]
-        self.dense_stats = checkpoint["dense_stats"]
-        self.label_quantiles = checkpoint["label_quantiles"]
-        self.dense_feature_cols = checkpoint["dense_feature_cols"]
-        self.categorical_feature_cols = checkpoint["categorical_feature_cols"]
-        self.list_feature_cols = checkpoint["list_feature_cols"]
+            self.vocab_lookup = checkpoint["vocab_lookup"]
+            self.dense_stats = checkpoint["dense_stats"]
+            self.label_quantiles = checkpoint["label_quantiles"]
+            self.dense_feature_cols = checkpoint["dense_feature_cols"]
+            self.categorical_feature_cols = checkpoint["categorical_feature_cols"]
+            self.list_feature_cols = checkpoint["list_feature_cols"]
 
-        self.model = ExposureNet(
-            dense_feature_cols=self.dense_feature_cols,
-            categorical_feature_cols=self.categorical_feature_cols,
-            list_feature_cols=self.list_feature_cols,
-            vocab_lookup=self.vocab_lookup,
-            dense_stats=self.dense_stats,
-            label_quantiles=self.label_quantiles,
-            num_classes=len(self.label_quantiles) + 1,
-        )
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.model.eval()
-        logging.info("Model Loaded Successfully...")
+            self.model = ExposureNet(
+                dense_feature_cols=self.dense_feature_cols,
+                categorical_feature_cols=self.categorical_feature_cols,
+                list_feature_cols=self.list_feature_cols,
+                vocab_lookup=self.vocab_lookup,
+                dense_stats=self.dense_stats,
+                label_quantiles=self.label_quantiles,
+                num_classes=len(self.label_quantiles) + 1,
+            )
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.model.eval()
+            logging.info("Model Loaded Successfully...")
+        except Exception as e:
+            logging.error("Error loading model: %s", str(e))
+            raise pb_utils.TritonModelException(
+                "Failed to load the ExposureNet model: {}".format(str(e))
+            )
 
     def execute(self, requests):
         responses = []
         for request in requests:
-            input_tensor = pb_utils.get_input_tensor_by_name(request, "input_str")
-            json_bytes = input_tensor.as_numpy()[0]
-            # raw_dict = eval(json_bytes.decode("utf-8"))
-            raw_dict = json.loads(json_bytes.decode("utf-8"))
-            logging.info("Got request: %s", raw_dict)
+            try:
+                input_tensor = pb_utils.get_input_tensor_by_name(request, "input_str")
+                if input_tensor is None:
+                    raise ValueError("Missing input tensor 'input_str'")
+                json_bytes = input_tensor.as_numpy()[0]
+                # raw_dict = eval(json_bytes.decode("utf-8"))
+                raw_dict = json.loads(json_bytes.decode("utf-8"))
+                logging.info("Got request: %s", raw_dict)
 
-            with torch.no_grad():
-                logits = self.model(raw_dict)
-                probs = torch.softmax(logits, dim=1)
-                pred_class = torch.argmax(probs, dim=1).item()
-            logging.info("Predicted class: %s", pred_class)
-            out = pb_utils.Tensor(
-                "output_str",
-                np.array(
-                    [f"Predicted class: {pred_class}".encode("utf-8")], dtype=object
-                ),
-            )
-            responses.append(pb_utils.InferenceResponse(output_tensors=[out]))
+                with torch.no_grad():
+                    logits = self.model(raw_dict)
+                    probs = torch.softmax(logits, dim=1)
+                    pred_class = torch.argmax(probs, dim=1).item()
+                logging.info("Predicted class: %s", pred_class)
+                out = pb_utils.Tensor(
+                    "output_str",
+                    np.array(
+                        [f"Predicted class: {pred_class}".encode("utf-8")], dtype=object
+                    ),
+                )
+                responses.append(pb_utils.InferenceResponse(output_tensors=[out]))
+            except Exception as e:
+                logging.error("Error processing request: %s", str(e))
+                error_response = pb_utils.InferenceResponse(
+                    error=pb_utils.TritonModelException(
+                        "Failed to process request: {}".format(str(e))
+                    )
+                )
+                responses.append(error_response)
 
         return responses
