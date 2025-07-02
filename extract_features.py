@@ -1,10 +1,8 @@
 import os
 import json
+import logging
 
-
-with open("subtitles.json") as f:
-    data = json.load(f)
-
+logger = logging.getLogger(__name__)
 
 from openai import OpenAI, AsyncOpenAI
 
@@ -34,15 +32,15 @@ async def extract_features(transcript):
             Please provide the output in the following JSON format:
             {json.dumps(response_format, indent=2)}
         """
-    print(f"Extracting features from transcript: {transcript}")
+    logger.info(f"Extracting features from transcript: {transcript}")
     response = await client.chat.completions.create(
         model="gpt-4o-2024-08-06",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
         response_format={"type": "json_object"},
     )
-    print(f"Response {response}")
+    logger.info(f"Response {response}")
     content = response.choices[0].message.content.strip()
     result = json.loads(content)
-    print(f"Extracted features: {result}")
+    logger.info(f"Extracted features: {result}")
     return result

@@ -7,6 +7,12 @@ from extract_features import extract_features
 import json
 import httpx
 import subprocess
+from logging_config import setup_logging
+import logging
+
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -39,7 +45,7 @@ def get_video_length(video_path: str) -> int:
         duration = float(info["format"]["duration"])
         return int(duration)
     except Exception as e:
-        print(f"Failed to get video duration: {e}")
+        logger.error(f"Failed to get video duration: {e}")
         return 0
 
 
@@ -58,7 +64,7 @@ async def infer_single_input(input_data):
     for key, value in input_data.items():
         if key in data:
             data[key] = value
-    print(f"Sending data to {url}: {data}")
+    logger.info(f"Sending data to {url}: {data}")
     payload = {
         "inputs": [
             {
@@ -76,12 +82,14 @@ async def infer_single_input(input_data):
         try:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            print("✅ Response:")
+            logger.info("✅ Response:")
             return response.json()
         except httpx.HTTPStatusError as exc:
-            print(f"❌ HTTP error: {exc.response.status_code} - {exc.response.text}")
+            logger.error(
+                f"❌ HTTP error: {exc.response.status_code} - {exc.response.text}"
+            )
         except Exception as e:
-            print(f"❌ Request failed: {e}")
+            logger.error(f"❌ Request failed: {e}")
 
 
 async def add_features(features):
@@ -105,21 +113,23 @@ async def add_features(features):
 
 @app.get("/")
 async def root():
+    logger.info("📥 Received request to '/' endpoint")
     return {"message": "Welcome to the Video Analysis API!"}
 
 
 @app.post("/analyze_video/")
 async def analyze_video(video_file: UploadFile = File(...)):
+    logger.info("📥 Received request to '/analyze_video/' endpoint")
     try:
         # Save the uploaded video file
         video_path = os.path.join(VIDEO_DIR, video_file.filename)
         async with aiofiles.open(video_path, "wb") as f:
             content = await video_file.read()
             await f.write(content)
-        print(f"Video saved to {video_path}")
+        logger.info(f"Video saved to {video_path}")
 
         duration = get_video_length(video_path)
-        print(f"⏱️ Video duration: {duration} seconds")
+        logger.info(f"⏱️ Video duration: {duration} seconds")
         # Call the ExtractSubtitles class to process the video
         result = extractor.process_single_video_file(video_path)
 
@@ -135,21 +145,21 @@ async def analyze_video(video_file: UploadFile = File(...)):
 
         # check if features already exist
         features = None
-        print(f"Checking if features for {material_id} already exist...")
+        logger.info(f"Checking if features for {material_id} already exist...")
         features_output_path = "features_output.json"
         if os.path.exists(features_output_path):
             async with aiofiles.open(features_output_path, "r") as f:
                 features_list = json.loads(await f.read())
                 for feature in features_list:
                     if feature.get("material_id") == material_id:
-                        print(
+                        logger.info(
                             f"Features for {material_id} already exist, skipping extraction...."
                         )
                         features = feature
                         break
 
         if not features:
-            print(f"Extracting features for {material_id}...")
+            logger.info(f"Extracting features for {material_id}...")
             # Extract features using the extract_features function
             features = await extract_features(transcript)
             if not features:
@@ -160,11 +170,11 @@ async def analyze_video(video_file: UploadFile = File(...)):
             features["material_id"] = material_id
             await add_features(features)
         features["length"] = duration
-        print(f"Extracted features: {features}")
+        logger.info(f"Extracted features: {features}")
 
         # do a post call to http://3.80.116.90:8000/v2/models/exposurenet/infer
         result = await infer_single_input(features)
-        print(f"Inference result: {result}")
+        logger.info(f"Inference result: {result}")
         result = {
             "message": "Video analysis completed successfully.",
             "video_file": video_path,

@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY . /app
 
+RUN apt update && apt install -y ffmpeg
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 5007
+EXPOSE 5008
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5007"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5008"]

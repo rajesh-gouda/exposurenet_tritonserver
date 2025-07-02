@@ -4,3 +4,5 @@ aiofiles
 httpx
 openai
 numpy
+python-dotenv
+python-multipart

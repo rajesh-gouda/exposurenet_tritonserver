@@ -14,6 +14,9 @@ import openai
 # Local imports
 from config import Config
 from cache import CacheManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Check OpenAI version for compatibility
 try:
@@ -335,7 +338,7 @@ class SubtitleExtractor:
         # Find all MP4 files
         video_files = list(videos_path.glob("*.mp4"))
         if not video_files:
-            print(f"No MP4 files found in {videos_dir}")
+            logger.info(f"No MP4 files found in {videos_dir}")
             return []
 
         # Load existing results
@@ -348,13 +351,13 @@ class SubtitleExtractor:
         total_videos = len(video_files)
         already_processed = len(video_files) - len(remaining_videos)
 
-        print(f"📊 Processing Status:")
-        print(f"  Total videos found: {total_videos}")
-        print(f"  Already processed: {already_processed}")
-        print(f"  Remaining to process: {len(remaining_videos)}")
+        logger.info(f"📊 Processing Status:")
+        logger.info(f"  Total videos found: {total_videos}")
+        logger.info(f"  Already processed: {already_processed}")
+        logger.info(f"  Remaining to process: {len(remaining_videos)}")
 
         if already_processed > 0:
-            print(f"  ℹ️  Resuming from previous session...")
+            logger.info(f"  ℹ️  Resuming from previous session...")
 
         if not remaining_videos:
             print(f"✅ All videos already processed!")
@@ -445,27 +448,29 @@ class SubtitleExtractor:
 
         video_name = video_file.stem
         output_file = "subtitles.json"
-        print(f"\n📹 Processing single video: {video_name}")
+        logger.info(f"\n📹 Processing single video: {video_name}")
         results = self.load_existing_results(output_file)
         for entry in results:
             if entry["material_id"] == video_name:
-                print(f" Already processed {video_name}, skipping...")
+                logger.info(f" Already processed {video_name}, skipping...")
                 return entry
 
         try:
-            print(f" Extracting audio and transcribing...")
+            logger.info(f" Extracting audio and transcribing...")
             transcription = self.transcribe_video(str(video_file))
 
             if transcription:
                 subtitle_content = self.extract_subtitle_text(transcription)
 
                 if self.is_english(subtitle_content):
-                    print(f"   🇺🇸 Text is in English, no translation needed")
+                    logger.info(f"   🇺🇸 Text is in English, no translation needed")
                     final_transcript = subtitle_content
                 else:
-                    print(f"   🌐 Text is not in English, translating with GPT-4o...")
+                    logger.info(
+                        f"   🌐 Text is not in English, translating with GPT-4o..."
+                    )
                     final_transcript = self.translate_to_english(subtitle_content)
-                    print(f"   ✅ Translation completed")
+                    logger.info(f"   ✅ Translation completed")
 
                 result_entry = {
                     "material_id": video_name,
@@ -474,15 +479,17 @@ class SubtitleExtractor:
                 # Save result immediately
                 self.save_single_result(result_entry, output_file, results)
 
-                print(f"   ✅ Successfully processed {video_name}")
-                print(f"   📝 Transcript length: {len(final_transcript)} characters")
+                logger.info(f"   ✅ Successfully processed {video_name}")
+                logger.info(
+                    f"   📝 Transcript length: {len(final_transcript)} characters"
+                )
 
             else:
                 result_entry = {"material_id": video_name, "transcript": ""}
-                print(f"   ✗ Failed to extract subtitles for {video_name}")
+                logger.info(f"   ✗ Failed to extract subtitles for {video_name}")
 
         except Exception as e:
-            print(f"   ✗ Error processing {video_name}: {e}")
+            logger.error(f"   ✗ Error processing {video_name}: {e}")
             result_entry = {"material_id": video_name, "transcript": ""}
 
         return result_entry
