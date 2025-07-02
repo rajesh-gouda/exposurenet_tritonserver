@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import openai
+import subprocess
 
 # Local imports
 from config import Config
@@ -103,8 +104,26 @@ class SubtitleExtractor:
         # Extract audio if needed
         if not audio_path.exists():
             print(f"Extracting audio from {Path(video_path).name}...")
-            os.system(
-                f'ffmpeg -i "{video_path}" -ar 16000 -ac 1 -b:a 64k -f mp3 "{audio_path}"'
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "quiet",  # or use "error" for minimal logging
+                    "-i",
+                    str(video_path),
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    "-b:a",
+                    "64k",
+                    "-f",
+                    "mp3",
+                    str(audio_path),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
             )
 
             if not os.path.exists(audio_path):
