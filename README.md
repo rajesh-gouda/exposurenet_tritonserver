@@ -66,7 +66,7 @@ This FastAPI service provides:
 
 ```bash 
 cd Video_pipeline
-docker build -t video-pipeline .
+docker build -t video-pipeline -f Dockerfile.video .
 ```
 
 ```bash 
