@@ -24,6 +24,7 @@ VIDEO_DIR = "videos"
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
 MAX_SIZE = 50 * 1024 * 1024
+EXPOSURENET_MODEL_URL = "http://3.80.116.90:8000/v2/models/exposurenet/infer"
 # Initialize the ExtractSubtitles class
 extractor = SubtitleExtractor()
 
@@ -55,7 +56,7 @@ def get_video_length(video_path: str) -> int:
 
 
 async def infer_single_input(input_data):
-    url = "http://3.80.116.90:8000/v2/models/exposurenet/infer"
+
     data = {
         "genre": "drama",
         "num_words": 300,
@@ -69,7 +70,7 @@ async def infer_single_input(input_data):
     for key, value in input_data.items():
         if key in data:
             data[key] = value
-    logger.info(f"Sending data to {url}: {data}")
+    logger.info(f"Sending data to {EXPOSURENET_MODEL_URL}: {data}")
     payload = {
         "inputs": [
             {
@@ -85,7 +86,9 @@ async def infer_single_input(input_data):
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
-            response = await client.post(url, json=payload, headers=headers)
+            response = await client.post(
+                EXPOSURENET_MODEL_URL, json=payload, headers=headers
+            )
             response.raise_for_status()
             logger.info("Response:")
             return response.json()

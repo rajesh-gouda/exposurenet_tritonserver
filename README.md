@@ -1,23 +1,91 @@
-# Triton server for exposurenet
+# 🎥 Video Pipeline with Triton Inference and FastAPI UI
 
-## How to use
-1. Clone this repository
-2. build the docker image using `docker build -t tritonserver-torch -f Dockerfile.torch .`
-3. run the docker using `docker run -it --name triton_server --net=host   -v $(pwd)/model_repository:/models   tritonserver-torch   tritonserver --model-repository=/models`
-this will start the triton server
+This project contains two Dockerized services:
 
-### POST Request from postman
-1. url for api `http://localhost:8000/v2/models/exposurenet/infer` update the ip
-2. create a json body with details like `{
-  "inputs": [
-    {
-      "name": "input_str",
-      "shape": [1],
-      "datatype": "BYTES",
-      "data": [
-        "{\"delivery_days\": 12, \"num_words\": 300, \"num_sentences\": 20, \"num_emotional_shifts\": 3, \"num_conflict_scenes\": 2, \"num_plot_twists\": 1, \"num_drama_hooks\": 1, \"length\": 120, \"associated_copy_original_language\": \"english\", \"genre\": \"drama\", \"delivery_media\": \"tv,youtube\", \"delivery_country\": \"india,usa\"}"
-      ]
-    }
-  ]
-}
-`
+1. **Triton Inference Server**: Serves the PyTorch model.
+2. **FastAPI Video Pipeline**: UI + API to upload an `.mp4` video, send it for analysis, and return predictions using Triton.
+
+---
+
+## 📁 Project Structure
+
+├── model_repository/ # Triton model repository
+│ └── exposurenet/
+│ └── 1/
+│ └── model.py # Python backend model
+│ └── config.pbtxt
+│
+├── Video_pipeline/ # FastAPI video pipeline
+│ ├── main.py # FastAPI server
+│ ├── templates/
+│ │ └── upload.html # Drag-and-drop upload UI
+  ├── Videos/
+│ │ └── *.mp4
+│ ├── requirements.txt
+│ └── Dockerfile.video # FastAPI Dockerfile
+│
+├── Dockerfile.torch # Triton Server Dockerfile
+└── README.md
+
+---
+
+## 🚀 Service 1: Triton Inference Server
+
+This service uses the [NVIDIA Triton Server](https://developer.nvidia.com/nvidia-triton-inference-server) with a PyTorch CPU backend.
+
+### 🔧 Build Image
+
+```bash
+docker build -t tritonserver-torch -f Dockerfile.torch .
+```
+
+### ▶️ Run Triton Server
+```bash
+docker run -it --name triton_server --net=host -v $(pwd)/model_repository:/models tritonserver-torch tritonserver --model-repository=/models
+```
+--net=host: Required for communication from FastAPI
+
+-v $(pwd)/model_repository:/models: Mount model repository into container
+
+Triton will load the models from /models and serve inference requests.
+
+---
+
+
+## 🌐 Service 2: FastAPI Video Pipeline + UI
+
+This FastAPI service provides:
+
+  A UI (/) to upload .mp4 videos
+
+  A backend (/analyze_video/) that:
+
+    Saves the file
+
+    Preprocesses if needed
+
+    (Optionally) calls Triton Inference Server
+
+    Returns predictions in the same HTML page
+
+### 🔧 Build FastAPI Image
+
+```bash 
+cd Video_pipeline
+docker build -t video-pipeline .
+```
+
+```bash 
+docker run -p 5008:5008 --name video_pipeline video-pipeline
+```
+
+✨ Features
+  📂 Drag & drop video upload UI
+
+  📏 Max file size: 50MB (client & server side validated)
+
+  ⚙️ Uses ffmpeg for preprocessing (installed in container)
+
+  🧠 Connects to Triton Inference Server for model predictions
+
+---
