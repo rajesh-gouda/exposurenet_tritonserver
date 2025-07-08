@@ -1,5 +1,8 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Form
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
+from fastapi import status
+import shutil
 import os
 import aiofiles
 from extract_subtitles import SubtitleExtractor
@@ -15,10 +18,12 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 VIDEO_DIR = "videos"
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
+MAX_SIZE = 50 * 1024 * 1024
 # Initialize the ExtractSubtitles class
 extractor = SubtitleExtractor()
 
@@ -82,7 +87,7 @@ async def infer_single_input(input_data):
         try:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
-            logger.info("✅ Response:")
+            logger.info("Response:")
             return response.json()
         except httpx.HTTPStatusError as exc:
             logger.error(
@@ -111,20 +116,34 @@ async def add_features(features):
         raise HTTPException(status_code=500, detail=f"Error adding features: {str(e)}")
 
 
-@app.get("/")
-async def root():
-    logger.info("📥 Received request to '/' endpoint")
-    return {"message": "Welcome to the Video Analysis API!"}
+# @app.get("/")
+# async def root():
+#     logger.info("📥 Received request to '/' endpoint")
+#     return {"message": "Welcome to the Video Analysis API!"}
+
+
+@app.get("/", response_class=HTMLResponse)
+async def show_upload_form(request: Request):
+    return templates.TemplateResponse("upload.html", {"request": request})
 
 
 @app.post("/analyze_video/")
-async def analyze_video(video_file: UploadFile = File(...)):
+async def analyze_video(request: Request, video_file: UploadFile = File(...)):
     logger.info("📥 Received request to '/analyze_video/' endpoint")
     try:
         # Save the uploaded video file
         video_path = os.path.join(VIDEO_DIR, video_file.filename)
         async with aiofiles.open(video_path, "wb") as f:
             content = await video_file.read()
+            if len(content) > MAX_SIZE:
+                logger.warning("File exceeds size limit.")
+                return templates.TemplateResponse(
+                    "upload.html",
+                    {
+                        "request": request,
+                        "result": {"message": "Error: File exceeds 50MB limit."},
+                    },
+                )
             await f.write(content)
         logger.info(f"Video saved to {video_path}")
 
@@ -180,6 +199,11 @@ async def analyze_video(video_file: UploadFile = File(...)):
             "video_file": video_path,
             "predicted_class": result["outputs"][0]["data"][0],
         }
-        return JSONResponse(content=result)
+        return templates.TemplateResponse(
+            "upload.html", {"request": request, "result": result}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return templates.TemplateResponse(
+            "upload.html",
+            {"request": request, "result": {"message": f"Error: {str(e)}"}},
+        )

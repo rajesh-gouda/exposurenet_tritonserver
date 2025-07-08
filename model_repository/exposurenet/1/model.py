@@ -100,6 +100,15 @@ class ExposureNet(nn.Module):
         return self.linear(combined)
 
 
+def get_predicted_range(pred_class: int, label_quantiles: list | np.ndarray) -> tuple:
+    if pred_class == 0:
+        return (float("-inf"), label_quantiles[0])  # ≤ first threshold
+    elif pred_class >= len(label_quantiles):
+        return (label_quantiles[-1], float("inf"))  # > last threshold
+    else:
+        return (label_quantiles[pred_class - 1], label_quantiles[pred_class])
+
+
 class TritonPythonModel:
     def initialize(self, args):
         try:
@@ -149,6 +158,8 @@ class TritonPythonModel:
                     probs = torch.softmax(logits, dim=1)
                     pred_class = torch.argmax(probs, dim=1).item()
                 logging.info("Predicted class: %s", pred_class)
+                range_ = get_predicted_range(pred_class, self.label_quantiles)
+                print(f"Predicted class: {pred_class}, Range: {range_}")
                 out = pb_utils.Tensor(
                     "output_str",
                     np.array(
