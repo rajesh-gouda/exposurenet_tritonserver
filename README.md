@@ -8,7 +8,7 @@ This project contains two Dockerized services:
 ---
 
 ## 📁 Project Structure
-
+```bash 
 ├── model_repository/ # Triton model repository
 │ └── exposurenet/
 │ └── 1/
@@ -26,7 +26,7 @@ This project contains two Dockerized services:
 │
 ├── Dockerfile.torch # Triton Server Dockerfile
 └── README.md
-
+```
 ---
 
 ## 🚀 Service 1: Triton Inference Server
@@ -55,18 +55,12 @@ Triton will load the models from /models and serve inference requests.
 ## 🌐 Service 2: FastAPI Video Pipeline + UI
 
 This FastAPI service provides:
-
   A UI (/) to upload .mp4 videos
-
   A backend (/analyze_video/) that:
-
-    Saves the file
-
-    Preprocesses if needed
-
-    (Optionally) calls Triton Inference Server
-
-    Returns predictions in the same HTML page
+  Saves the file
+  Preprocesses if needed
+  (Optionally) calls Triton Inference Server
+  Returns predictions in the same HTML page
 
 ### 🔧 Build FastAPI Image
 
