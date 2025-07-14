@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory="templates")
 VIDEO_DIR = "videos"
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
-MAX_SIZE = 50 * 1024 * 1024
+MAX_SIZE = 500 * 1024 * 1024
 EXPOSURENET_MODEL_URL = "http://3.80.116.90:8000/v2/models/exposurenet/infer"
 # Initialize the ExtractSubtitles class
 extractor = SubtitleExtractor()
