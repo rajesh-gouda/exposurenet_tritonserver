@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi import status
 import shutil
+from pydantic import BaseModel
 import os
 import aiofiles
 from extract_subtitles import SubtitleExtractor
@@ -23,10 +24,16 @@ templates = Jinja2Templates(directory="templates")
 VIDEO_DIR = "videos"
 os.makedirs(VIDEO_DIR, exist_ok=True)
 
-MAX_SIZE = 500 * 1024 * 1024
+MAX_SIZE = 1024 * 1024 * 1024
 EXPOSURENET_MODEL_URL = "http://3.80.116.90:8000/v2/models/exposurenet/infer"
 # Initialize the ExtractSubtitles class
 extractor = SubtitleExtractor()
+
+
+class JsonResponse(BaseModel):
+    message: str
+    video_file: str
+    predicted_class: str
 
 
 def get_video_length(video_path: str) -> int:
@@ -130,9 +137,9 @@ async def show_upload_form(request: Request):
     return templates.TemplateResponse("upload.html", {"request": request})
 
 
-@app.post("/analyze_video/")
-async def analyze_video(request: Request, video_file: UploadFile = File(...)):
-    logger.info("📥 Received request to '/analyze_video/' endpoint")
+@app.post("/process_video/")
+async def process_video(request: Request, video_file: UploadFile = File(...)):
+    logger.info("📥 Received request to '/process_video/' endpoint")
     try:
         # Save the uploaded video file
         video_path = os.path.join(VIDEO_DIR, video_file.filename)
@@ -209,4 +216,85 @@ async def analyze_video(request: Request, video_file: UploadFile = File(...)):
         return templates.TemplateResponse(
             "upload.html",
             {"request": request, "result": {"message": f"Error: {str(e)}"}},
+        )
+
+
+@app.post("/analyze_video/")
+async def analyze_video(request: Request, video_file: UploadFile = File(...)):
+    logger.info("📥 Received request to '/analyze_video/' endpoint")
+    try:
+        # Save the uploaded video file
+        video_path = os.path.join(VIDEO_DIR, video_file.filename)
+        async with aiofiles.open(video_path, "wb") as f:
+            content = await video_file.read()
+            if len(content) > MAX_SIZE:
+                logger.warning("File exceeds size limit.")
+                return HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File exceeds 50MB limit.",
+                )
+            await f.write(content)
+        logger.info(f"Video saved to {video_path}")
+
+        duration = get_video_length(video_path)
+        logger.info(f"⏱️ Video duration: {duration} seconds")
+        # Call the ExtractSubtitles class to process the video
+        result = extractor.process_single_video_file(video_path)
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Failed to process video.")
+        material_id = result.get("material_id", video_file.filename)
+        # Extract features from the transcript
+        transcript = result.get("transcript", "")
+        if not transcript:
+            raise HTTPException(
+                status_code=400, detail="No transcript found in the video."
+            )
+
+        # check if features already exist
+        features = None
+        logger.info(f"Checking if features for {material_id} already exist...")
+        features_output_path = "features_output.json"
+        if os.path.exists(features_output_path):
+            async with aiofiles.open(features_output_path, "r") as f:
+                features_list = json.loads(await f.read())
+                for feature in features_list:
+                    if feature.get("material_id") == material_id:
+                        logger.info(
+                            f"Features for {material_id} already exist, skipping extraction...."
+                        )
+                        features = feature
+                        break
+
+        if not features:
+            logger.info(f"Extracting features for {material_id}...")
+            # Extract features using the extract_features function
+            features = await extract_features(transcript)
+            if not features:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to extract features from the transcript.",
+                )
+            features["material_id"] = material_id
+            await add_features(features)
+        features["length"] = duration
+        logger.info(f"Extracted features: {features}")
+
+        # do a post call to http://3.80.116.90:8000/v2/models/exposurenet/infer
+        result = await infer_single_input(features)
+        logger.info(f"Inference result: {result}")
+        result = {
+            "message": "Video analysis completed successfully.",
+            "video_file": video_path,
+            "predicted_class": result["outputs"][0]["data"][0],
+        }
+        return JsonResponse(
+            message=result["message"],
+            video_file=result["video_file"],
+            predicted_class=result["predicted_class"],
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Cannot Process video now please try again later",
         )
