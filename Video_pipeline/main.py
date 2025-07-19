@@ -145,15 +145,15 @@ async def process_video(request: Request, video_file: UploadFile = File(...)):
         video_path = os.path.join(VIDEO_DIR, video_file.filename)
         async with aiofiles.open(video_path, "wb") as f:
             content = await video_file.read()
-            if len(content) > MAX_SIZE:
-                logger.warning("File exceeds size limit.")
-                return templates.TemplateResponse(
-                    "upload.html",
-                    {
-                        "request": request,
-                        "result": {"message": "Error: File exceeds 50MB limit."},
-                    },
-                )
+            # if len(content) > MAX_SIZE:
+            #     logger.warning("File exceeds size limit.")
+            #     return templates.TemplateResponse(
+            #         "upload.html",
+            #         {
+            #             "request": request,
+            #             "result": {"message": "Error: File exceeds 50MB limit."},
+            #         },
+            #     )
             await f.write(content)
         logger.info(f"Video saved to {video_path}")
 
@@ -227,12 +227,12 @@ async def analyze_video(request: Request, video_file: UploadFile = File(...)):
         video_path = os.path.join(VIDEO_DIR, video_file.filename)
         async with aiofiles.open(video_path, "wb") as f:
             content = await video_file.read()
-            if len(content) > MAX_SIZE:
-                logger.warning("File exceeds size limit.")
-                return HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File exceeds 50MB limit.",
-                )
+            # if len(content) > MAX_SIZE:
+            #     logger.warning("File exceeds size limit.")
+            #     return HTTPException(
+            #         status_code=status.HTTP_400_BAD_REQUEST,
+            #         detail="File exceeds 50MB limit.",
+            #     )
             await f.write(content)
         logger.info(f"Video saved to {video_path}")
 
